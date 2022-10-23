@@ -3,9 +3,7 @@
 
 """
 
-from importlib.metadata import metadata
 import sqlite3
-from dataclasses import dataclass, field
 
 class Singleton(type):
     _instances = {}
@@ -15,7 +13,6 @@ class Singleton(type):
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
-@dataclass
 class Database(metaclass=Singleton):    
     
     """
@@ -42,20 +39,24 @@ class Database(metaclass=Singleton):
     NOT = "NOT"	
     OR = "OR"
 
-    __instance = None
-    pathname : str = field(default=':memory:')
-    # _conn : sqlite3.Connection = field(default=":memory:", repr=False)
+    def __init__(self, pathname: str = ':memory:'):
+    # def __init__(self, pathname: str = ':memory:', _conn: sqlite3.Connection = None):
 
-    def __post_init__(self):
+        self.pathname: str = pathname
+        self._conn: sqlite3.Connection = None
+
         try:
             self._conn = sqlite3.connect(self.pathname)
+        
         except sqlite3.Error as err:
             print(err, f'({self.pathname})')
             exit()
 
+
     def __del__(self):
-        if isinstance(self._conn, sqlite3.Connection):
-            self._conn.close()
+        if hasattr(self, '_conn'):
+            if isinstance(self._conn, sqlite3.Connection):
+                self._conn.close()
 
     def run(self, sql: str) -> sqlite3.Cursor:
         """
@@ -133,19 +134,20 @@ class Database(metaclass=Singleton):
 
 if __name__ == "__main__":
     # db = Database('test.sqlite')
-    db = Database(pathname="t.sqlite")
+    db = Database()
     db2 = Database()
 
     print(db)
     print(db2)
     
-    # db.run("CREATE TABLE car (m TEXT, name INTERGER, year INTERGER)")
+    db.run("CREATE TABLE car (m TEXT, name INTERGER, year INTERGER)")
 
-    # db.insert("car", (None, 'Uno', 2005, ))
-    # db.insert("car", (None, 'Fusca', 1967, ))
-    # db.insert("car", (None, 'Fusion', 2013, ))
+    db.insert("car", (None, 'Uno', 2005, ))
+    db.insert("car", (None, 'Fusca', 1967, ))
+    db.insert("car", (None, 'Fusion', 2013, ))
 
-    # print(db.select('car', column=['year'], where={'name':'Uno'}))
+    print(db.select('car', column=['year'], where={'name':'Uno'}))
+    print(db2.select('car', column=['year'], where={'name':'Uno'}))
 
     # print(db.run("CREATE TABLE car (name TEXT)"))
     # print(db.run("INSERT INTO car VALUES ('Fusca')"))
