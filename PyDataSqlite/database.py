@@ -2,8 +2,10 @@
     This module handle database based on slqlite
 
 """
-
+from ast import Raise
+from dataclasses import dataclass
 import sqlite3
+
 
 class Singleton(type):
     _instances = {}
@@ -13,6 +15,47 @@ class Singleton(type):
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
+@dataclass(frozen=True)
+class SqliteOperator:
+
+    EQUAL = " = "
+    NOT_EQUAL = " <> "
+    LESS = " < "
+    GREATER = " > "
+    LESS_EQUAL = " <= "
+    GREATER_EQUAL = " >= "
+
+    ALL = " ALL "
+    ANY = " ANY "
+    AND = " AND " 	 
+    ANY =  " ANY "	 
+    BETWEEN = " BETWEEN "	 
+    EXISTS = " EXISTS "	
+    IN = " IN "	
+    LIKE = " LIKE "	
+    NOT = " NOT "	
+    OR = " OR "
+
+    ASC = "ASC"
+    DESC = "DESC"
+
+class SqliteEngine:
+    @staticmethod
+    def column():
+        pass
+
+class SqliteWhere:
+    @staticmethod
+    def equal(key: str, value: str):
+        if value != None:
+            return f"{key} = '{value}'"
+        else:
+            return f"{key} IS NULL"
+
+    @staticmethod
+    def where(*args: 'SqliteWhere') -> str:
+        return f"WHERE {' '.join(args)}"
+
 class Database(metaclass=Singleton):    
     
     """
@@ -20,24 +63,6 @@ class Database(metaclass=Singleton):
         
         The 'pathname' variable can also contain the exact database path
     """
-
-    EQUAL = "="
-    NOT_EQUAL = "<>"
-    LESS = "<"
-    GREATER = ">"
-    LESS_EQUAL = "<="
-    GREATER_EQUAL = ">="
-
-    ALL = "ALL"
-    ANY = "ANY"
-    AND = "AND"	 
-    ANY = "ANY"	 
-    BETWEEN = "BETWEEN"	 
-    EXISTS = "EXISTS"	
-    IN = "IN"	
-    LIKE = "LIKE"	
-    NOT = "NOT"	
-    OR = "OR"
 
     def __init__(self, pathname: str = ':memory:'):
     # def __init__(self, pathname: str = ':memory:', _conn: sqlite3.Connection = None):
@@ -75,6 +100,9 @@ class Database(metaclass=Singleton):
 
         """
             Insert values
+
+            table: 'mytable'
+            values: (None, name, 18)
         """
         assert type(values) == tuple
 
@@ -89,33 +117,67 @@ class Database(metaclass=Singleton):
             
             return cur.lastrowid
         except sqlite3.Error as err:
+
             print("Insert error, ", err)
             exit()
 
-    def select(self, table: str, where: dict | str = '', column: list|str = '*'):
+    def select(self, table: str, where: SqliteWhere = '', column: list|str = '*', order_by: tuple[str] = (), limit: int = -1):
+        
         """
             Select values
 
-            column: 
+            column: ['name', 'year', ... ]
+            where: SqliteWhere (Class) statement ->.
+
+                SqliteWhere.where(
+                        SqliteWhere.equal('name', 'Josh')
+                        SqliteOperator.AND,
+                        SqliteWhere.equal('year', 2000)
+                    )
+
+            order_by: {'name'} or {'name', 'DESC'}
+            limit: 121
+            extras: extra instructions ->.
+                Coming soon
         """
+
+        assert type(limit) == int
+        
         values = []
-        bindings = []
 
         if type(column) == list:
             column = ','.join(column)
+        else:
+            column = '*'
 
-        if type(where) == dict:
-            
-            bindings = list(map(lambda k: f'{k}=?' ,where.keys()))
-            values = list(map(lambda k: where[k] ,where.keys()))
+        if order_by != () and type(order_by) == tuple:
+            order_by = list(order_by)
+            print(SqliteOperator.ASC)
+            print(order_by[1])
+            print(order_by)
+            if len(order_by)>1:
+                if (order_by[1] == SqliteOperator.ASC) or (order_by[1] == SqliteOperator.DESC):
+                    order_by = f"{order_by[0]} {order_by[1]}"
+                else:
+                    raise Exception("'ORDER BY' and different from ASC or DESC ")
+            else:
+                    order_by = order_by[0]
+        else:
+            order_by = ''
 
-            where = f'WHERE {",".join(bindings)}'
-
-        sql = f'SELECT {column} FROM {table} {where}'
+        sql = f'''
+            SELECT {column} 
+            FROM {table}
+            {where}
+            {"ORDER BY " + order_by if order_by else '' }
+            {"LIMIT " + str(limit) if limit > 0 else ''}
+        '''
 
         try:
             cur = self._conn.cursor()
             cur.execute(sql, values)
+
+            print(f'Tables: {list(map(lambda x: x[0], cur.description))}')
 
             return cur.fetchall()
         except sqlite3.Error as err:
@@ -134,24 +196,38 @@ class Database(metaclass=Singleton):
 
 if __name__ == "__main__":
     # db = Database('test.sqlite')
-    db = Database()
-    db2 = Database()
-
-    print(db)
-    print(db2)
+    db = Database('test.sqlite')
     
-    db.run("CREATE TABLE car (m TEXT, name INTERGER, year INTERGER)")
+    # db.run("CREATE TABLE IF NOT EXISTS car (id INTEGER PRIMARY KEY NOT NULL, model TEXT, make TEXT, year INTEGER, category TEXT)")
 
-    db.insert("car", (None, 'Uno', 2005, ))
-    db.insert("car", (None, 'Fusca', 1967, ))
-    db.insert("car", (None, 'Fusion', 2013, ))
+    # db.insert("car", (None, 'Fiat', 'Uno', 1998, 'silver'))
+    # db.insert("car", (None, 'Fiat', 'Bravo', 2002, 'black'))
+    # db.insert("car", (None, 'VW', 'Jetta', 2022, 'red'))
+    # db.insert("car", (None, 'Renault', 'Cleo', 2007, 'white'))
+    # db.insert("car", (None, 'Chevrolet', 'Onix',2022, None))
 
-    print(db.select('car', column=['year'], where={'name':'Uno'}))
-    print(db2.select('car', column=['year'], where={'name':'Uno'}))
 
-    # print(db.run("CREATE TABLE car (name TEXT)"))
-    # print(db.run("INSERT INTO car VALUES ('Fusca')"))
-    # print(db.run("SELECT * FROM car").fetchall())
+    # result = db.select(table='car', where=SqliteWhere.where(
+    #     SqliteWhere.equal('year', 2022),
+    #     SqliteOperator.AND,
+    #     SqliteWhere.equal('name', 'Onix')
+    # ))
+
+    # with open('PyDataSqlite/car.json') as c:
+    #     data = json.load(c)
+    #     for i in data['results']:
+    #         db.insert("car", (None, i['Make'], i['Model'],i['Year'], i['Category']))
+
+
+    result = db.select(table='car', limit=5, where=SqliteWhere.where(
+        SqliteWhere.equal('model','BMW'),
+        SqliteOperator.AND,
+        SqliteWhere.equal('year','2000')
+    ))
+
+    #   sabrujm H \,SMprint(result)
+
+    # db.insert(table='car', values=(None, 'BMW custom', 'Z8', 2022))
 
     """
         
