@@ -4,13 +4,14 @@
 """
 
 from dataclasses import dataclass
+from typing import List
 
 import io
 import os
 import time
 import sqlite3
 import pathlib
-
+# import requests
 
 def sqliteError(func):
     def inner(ref, *args, **kargs):
@@ -54,6 +55,7 @@ class SqliteOperator:
     ASC = "ASC"
     DESC = "DESC"
 
+@dataclass(frozen=True)
 class SqliteTypes:
 
     INTEGER = "INTEGER"
@@ -63,13 +65,13 @@ class SqliteTypes:
     BLOB = "BLOB"
     DATETIME = "DATETIME "
 
-
 class SqliteEngine:
 
     PRIMARY_KEY = "PRIMARY KEY"
     NOT_NULL = "NOT NULL"
     UNIQUE = "UNIQUE"
     CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP"
+
     @staticmethod
     def column(name: str, type_: SqliteTypes, primary_key: bool = False, not_null: bool = False, unique: bool = False, default = False):
 
@@ -95,11 +97,36 @@ class SqliteEngine:
 
 class SqliteWhere:
     @staticmethod
-    def equal(key: str, value: str):
+    def equal(key: str, value: str) -> str:
         if value != None:
             return f"{key} = '{value}'"
         else:
             return f"{key} IS NULL"
+
+    @staticmethod
+    def like(key: str, value: str) -> str:
+        """
+            value: %value%
+        """
+        return f"{key}{SqliteOperator.LIKE}'{value}'"
+
+    @staticmethod
+    def  in_(key: str, value: tuple) -> str:
+        """
+            value: tuple('value1', value2, ... )
+        """
+
+        return f"{key}{SqliteOperator.IN}({','.join(map(str, value))})"
+
+    @staticmethod
+    def between(key: str, low_ex: str|int, high_ex: str|int, not_between: bool = False ) -> str:
+        """
+            value: tuple('value1', value2, ... )
+        """
+
+        return f"{key} {SqliteOperator.NOT if not_between else ''} {SqliteOperator.BETWEEN} {low_ex}{SqliteOperator.AND}{high_ex}"
+
+
 
     @staticmethod
     def where(*args: 'SqliteWhere') -> str:
@@ -212,7 +239,7 @@ class Database(metaclass=Singleton):
             print("Insert error, ", err)
             exit()
 
-    def select(self, table: str, where: SqliteWhere = '', column: list|str = '*', order_by: tuple[str] = (), limit: int = -1):
+    def select(self, table: str, where: SqliteWhere = '', column: list|str = '*', order_by: tuple[str] = (), limit: int = -1) -> List[tuple] | tuple :
         
         """
             Select values
@@ -227,9 +254,6 @@ class Database(metaclass=Singleton):
                     )
 
             order_by: {'name'} or {'name', 'DESC'}
-            limit: 121
-            extras: extra instructions ->.
-                Coming soon
         """
 
         assert type(limit) == int
@@ -243,9 +267,6 @@ class Database(metaclass=Singleton):
 
         if order_by != () and type(order_by) == tuple:
             order_by = list(order_by)
-            print(SqliteOperator.ASC)
-            print(order_by[1])
-            print(order_by)
             if len(order_by)>1:
                 if (order_by[1] == SqliteOperator.ASC) or (order_by[1] == SqliteOperator.DESC):
                     order_by = f"{order_by[0]} {order_by[1]}"
@@ -268,9 +289,11 @@ class Database(metaclass=Singleton):
             cur = self._conn.cursor()
             cur.execute(sql, values)
 
-            print(f'Tables: {list(map(lambda x: x[0], cur.description))}')
-
-            return cur.fetchall()
+            fetch = cur.fetchall()
+            if len(fetch) == 1:
+                return fetch[0]
+            
+            return fetch if len(fetch) > 1 else None
         except sqlite3.Error as err:
             print("Select error", err)
             exit()
@@ -288,6 +311,11 @@ class Database(metaclass=Singleton):
             self._conn.commit()
         except sqlite3.Error as err:
             print("Delete error, ", err)
+
+    def get_columns(self, table: str) -> List[str]:
+        cur = self.run(f"SELECT * FROM {table} LIMIT 1")
+
+        return list(map(lambda x: x[0], cur.description))
 
     @sqliteError
     def drop_table(self, table: str) -> None:
@@ -317,66 +345,30 @@ class Database(metaclass=Singleton):
         return sqlite3.connect(pathname)
 
 if __name__ == "__main__":
-    # db = Database('test.sqlite')
-    db = Database('prod.sqlite')
-    
-    # db.run("CREATE TABLE IF NOT EXISTS car (id INTEGER PRIMARY KEY NOT NULL, model TEXT, make TEXT, year INTEGER, category TEXT)")
+    db = Database('test.sqlite')
 
-    # db.insert("car", (None, 'Fiat', 'Uno', 1998, 'silver'))
-    # db.insert("car", (None, 'Fiat', 'Bravo', 2002, 'black'))
-    # db.insert("car", (None, 'VW', 'Jetta', 2022, 'red'))
-    # db.insert("car", (None, 'Renault', 'Cleo', 2007, 'white'))
-    # db.insert("car", (None, 'Chevrolet', 'Onix',2022, None))
+    # data = requests.get('https://jsonplaceholder.typicode.com/comments')
 
+    # db.create_table('comments',  [
+    #     SqliteEngine.column('id', SqliteTypes.INTEGER, primary_key=True, not_null=True),
+    #     SqliteEngine.column('postId', SqliteTypes.INTEGER, not_null=True),
+    #     SqliteEngine.column('name', SqliteTypes.TEXT, not_null=True),
+    #     SqliteEngine.column('email', SqliteTypes.TEXT, not_null=True),
+    #     SqliteEngine.column('body', SqliteTypes.TEXT, not_null=True),
+    # ])
 
-    # result = db.select(table='car', where=SqliteWhere.where(
-    #     SqliteWhere.equal('year', 2022),
-    #     SqliteOperator.AND,
-    #     SqliteWhere.equal('name', 'Onix')
+    # for i in data.json():
+    #     db.insert('comments', (None, i['postId'], i['name'], i['email'], i['body']))
+
+    # print("Insert completed")
+
+    # sl = db.select('comments', where=SqliteWhere.where(
+    #     SqliteWhere.between('id', 2, 20, not_between=True)
     # ))
 
-    # with open('PyDataSqlite/car.json') as c:
-    #     data = json.load(c)
-    #     for i in data['results']:
-    #         db.insert("car", (None, i['Make'], i['Model'],i['Year'], i['Category']))
+    # print(sl)
 
-    # db.delete('car', where=SqliteWhere.where(
-    #     SqliteWhere.equal('id', '2442')
-    # ))
-
-    # result = db.select(table='car', limit=5, where=SqliteWhere.where(
-    #     SqliteWhere.equal('model','BMW'),
-    #     SqliteOperator.AND,
-    #     SqliteWhere.equal('year','2000')
-    # ))
-
-    # db.drop_table('person')
-
-    # col = [
-    #     SqliteEngine.column(name='id', type_=SqliteTypes.INTEGER, primary_key=True, not_null=True),
-    #     SqliteEngine.column(name='name', type_=SqliteTypes.TEXT, not_null=True),
-    #     SqliteEngine.column(name='age', type_=SqliteTypes.INTEGER, default=17, not_null=True),
-    #     SqliteEngine.column(name='created_at', type_=SqliteTypes.DATETIME, default=SqliteEngine.CURRENT_TIMESTAMP, not_null=True),
-    # ]
-
-    # print(SqliteEngine.create(
-    #         table='qq',
-    #         columns=col
-    #     ))
-
-    # db.create_table('person', columns=col)
-
-    # db.insert(table='person', values=(None, 'Sabrina Gatosa'), columns=('id', 'name'))
-
-    # result = db.select('person')
-
-    # for i in result:
-    #     print(i)
-
-
-    # db.backup('test/.sql')
-    db.restore('C:/Users/Gilberto/Documents/dev/PyDataSqlite/test/.sql.1667367941690510500_dump.sql')
-
+    # print(db.get_columns('comments'))
 
     """
         
@@ -390,6 +382,3 @@ if __name__ == "__main__":
         db.backup()
 
     """
-
-    
-    # input("trava >>")
