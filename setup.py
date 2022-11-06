@@ -22,7 +22,8 @@ setup(
     long_description=long_description,
     packages=find_packages(),
     install_requires=[],
-    keywords=['python', 'database', 'sqlite'],
+    python_requires='>=3.7',
+    keywords=['python', 'database', 'sqlite', 'handler'],
     classifiers=[
         "Development Status :: 1 - Planning",
         "Programming Language :: Python :: 3",

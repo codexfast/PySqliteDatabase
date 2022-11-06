@@ -11,7 +11,6 @@ import os
 import time
 import sqlite3
 import pathlib
-# import requests
 
 def sqliteError(func):
     def inner(ref, *args, **kargs):
@@ -345,31 +344,7 @@ class Database(metaclass=Singleton):
         return sqlite3.connect(pathname)
 
 if __name__ == "__main__":
-    db = Database('test.sqlite')
-
-    # data = requests.get('https://jsonplaceholder.typicode.com/comments')
-
-    # db.create_table('comments',  [
-    #     SqliteEngine.column('id', SqliteTypes.INTEGER, primary_key=True, not_null=True),
-    #     SqliteEngine.column('postId', SqliteTypes.INTEGER, not_null=True),
-    #     SqliteEngine.column('name', SqliteTypes.TEXT, not_null=True),
-    #     SqliteEngine.column('email', SqliteTypes.TEXT, not_null=True),
-    #     SqliteEngine.column('body', SqliteTypes.TEXT, not_null=True),
-    # ])
-
-    # for i in data.json():
-    #     db.insert('comments', (None, i['postId'], i['name'], i['email'], i['body']))
-
-    # print("Insert completed")
-
-    # sl = db.select('comments', where=SqliteWhere.where(
-    #     SqliteWhere.between('id', 2, 20, not_between=True)
-    # ))
-
-    # print(sl)
-
-    # print(db.get_columns('comments'))
-
+  
     """
         
         db.create_table()
