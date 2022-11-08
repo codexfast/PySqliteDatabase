@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PySqliteDatabase"
+version = "0.0.5"
+authors = [
+  { name="codexfast (Gilberto Leandro)", email="codexfast@gmail.com" },
+]
+description = "This package allows you to easily manipulate any sqlite based database"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
