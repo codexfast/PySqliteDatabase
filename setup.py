@@ -13,7 +13,7 @@ LONG_DESCRIPTION = 'This package allows you to easily manipulate any sqlite base
 
 # Setting up
 setup(
-    name="PyDataSqlite",
+    name="PySqliteDatabase",
     version=VERSION,
     author="codexfast (Gilberto Leandro)",
     author_email="<codexfast@gmail.com>",
