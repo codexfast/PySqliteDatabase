@@ -91,6 +91,12 @@ class SqliteEngine:
         return column
 
     @staticmethod
+    def value(key, v):
+        def in_apostrophe(txt): return f"""'{txt}'""" 
+
+        return f"{key}={v if type(v) is int else str(in_apostrophe(v))}"
+
+    @staticmethod
     def create(table: str, columns: List[str]):
         return f'CREATE TABLE IF NOT EXISTS {table} ({",".join(columns)})'
 
@@ -298,13 +304,13 @@ class Database(metaclass=Singleton):
             exit()
 
     @sqliteError
-    def update(self, table: str, where: SqliteWhere, order_by: str = '', limit: int = -1 ):
+    def update(self, table: str, updata: List[str], where: SqliteWhere, order_by: str = '', limit: int = -1 ):
         """UPDATE only 'WHERE' stmt"""
 
         if where == '':
             raise ValueError('Where is empty')
 
-        sql = f"""UPDATE {table} SET {where}"""
+        sql = f"""UPDATE {table} SET {','.join(updata)} {where}"""
 
         if order_by != '':
             sql = f"{sql} ORDER BY {order_by}"
@@ -312,8 +318,9 @@ class Database(metaclass=Singleton):
         if limit > 0:
             sql = f"{sql} LIMIT {limit}"
 
+        cur = self._conn.cursor()
+        cur.execute(sql)
 
-        self._conn.execute(sql)
         return self._conn.commit()
 
     def delete(self, table: str, where: SqliteWhere):
@@ -325,7 +332,9 @@ class Database(metaclass=Singleton):
         sql = f"""DELETE FROM {table} {where}"""
 
         try:
-            self._conn.execute(sql)
+            cur = self._conn.cursor()
+            cur.execute(sql)
+
             return self._conn.commit()
         except sqlite3.Error as err:
             print("Delete error, ", err)
@@ -337,8 +346,14 @@ class Database(metaclass=Singleton):
 
     @sqliteError
     def drop_table(self, table: str) -> None:
-        self._conn.execute(f'DROP TABLE {table}')
-        self._conn.commit()
+        """
+            Drop table
+        """
+        
+        cur = self._conn.cursor()
+        cur.execute(f'DROP TABLE {table}')
+
+        return self._conn.commit()
 
     @sqliteError
     def create_table(self, table: str, columns: List[SqliteEngine.column] ) -> None:
@@ -349,11 +364,13 @@ class Database(metaclass=Singleton):
         assert type(columns) == list
         assert columns != []
 
-        self._conn.execute(SqliteEngine.create(
+        cur = self._conn.cursor()
+        cur.execute(SqliteEngine.create(
             table=table,
             columns=columns
         ))
-        self._conn.commit()
+
+        return self._conn.commit()
 
     @staticmethod
     def create_conn(pathname: str):
@@ -364,47 +381,13 @@ class Database(metaclass=Singleton):
 
 if __name__ == "__main__":
 
-    person = [
-        {"name": "Roger", "age": 312321314, "sex":"m", "color":"merda"},
-        {"name": "Mia", "age": 332, "sex":"f", "color":"yellow"},
-        {"name": "Smith", "age": 97, "sex":"f", "color":"white"},
-        {"name": "Anne", "age": 36, "sex":"m", "color":"red"},
-        {"name": "Pablo", "age": 27, "sex":"m", "color":"white"},
-        {"name": "Suzy", "age": 44, "sex":"f", "color":"brown"},
-        {"name": "Andrean", "age": 64, "sex":"f", "color":"white"},
-        {"name": "Gilberto", "age": 23, "sex":"m", "color":"black"},
-        {"name": "Honda civic", "age": 12, "sex":"carro macho", "color":"silver"},
-    ]
-
-    db = Database('person.db')
-
-    db.create_table('person', columns=[
-        SqliteEngine.column('id', SqliteTypes.INTEGER, not_null=True, primary_key=True),
-        SqliteEngine.column('name', SqliteTypes.TEXT),
-        SqliteEngine.column('age', SqliteTypes.INTEGER),
-        SqliteEngine.column('sex', SqliteTypes.TEXT),
-        SqliteEngine.column('color', SqliteTypes.TEXT),
-    ])
-
-    # for i in person:
-    #     db.insert('person', (None, i['name'], i['age'], i['sex'], i['color']))
-    #
-
-    db.update('person', where=SqliteWhere.where(
-        SqliteWhere.equal('id', 1)
-    ))
-    p = db.select('person', where=SqliteWhere.where(
-        SqliteWhere.equal('id', 1)
-    ))
-
-    print(p)
 
     """
 
         db.create_table() ok
         db.drop_table() ok
 
-        db.insert()
+        db.insert() ok
         db.select() ok
         db.delete() ok
 
