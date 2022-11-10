@@ -4,6 +4,7 @@
 ### Python ###
 # Custom
 *.sqlite
+*.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
