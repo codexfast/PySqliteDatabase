@@ -3,14 +3,13 @@
 
 """
 
-from dataclasses import dataclass
-from typing import List
-
 import io
 import os
 import time
 import sqlite3
 import pathlib
+
+def in_apostrophe(txt): return f"""'{txt}'""" 
 
 def sqliteError(func):
     def inner(ref, *args, **kargs):
@@ -30,31 +29,29 @@ class Singleton(type):
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
-@dataclass(frozen=True)
 class SqliteOperator:
 
-    EQUAL = " = "
-    NOT_EQUAL = " <> "
-    LESS = " < "
-    GREATER = " > "
-    LESS_EQUAL = " <= "
-    GREATER_EQUAL = " >= "
+    EQUAL = "="
+    NOT_EQUAL = "<>"
+    LESS = "<"
+    GREATER = ">"
+    LESS_EQUAL = "<="
+    GREATER_EQUAL = ">="
 
-    ALL = " ALL "
-    ANY = " ANY "
-    AND = " AND "
-    ANY =  " ANY "
-    BETWEEN = " BETWEEN "
-    EXISTS = " EXISTS "
-    IN = " IN "
-    LIKE = " LIKE "
-    NOT = " NOT "
-    OR = " OR "
+    ALL = "ALL"
+    ANY = "ANY"
+    AND = "AND"
+    ANY =  "ANY"
+    BETWEEN = "BETWEEN"
+    EXISTS = "EXISTS"
+    IN = "IN"
+    LIKE = "LIKE"
+    NOT = "NOT"
+    OR = "OR"
 
     ASC = "ASC"
     DESC = "DESC"
 
-@dataclass(frozen=True)
 class SqliteTypes:
 
     INTEGER = "INTEGER"
@@ -92,15 +89,31 @@ class SqliteEngine:
 
     @staticmethod
     def value(key, v):
-        def in_apostrophe(txt): return f"""'{txt}'""" 
-
         return f"{key}={v if type(v) is int else str(in_apostrophe(v))}"
 
     @staticmethod
-    def create(table: str, columns: List[str]):
+    def create(table: str, columns: list[str]):
         return f'CREATE TABLE IF NOT EXISTS {table} ({",".join(columns)})'
 
-class SqliteWhere:
+class SqliteWhere():
+
+    """
+        Usage:
+            where = SqliteWhere(
+                        SqliteWhere.equal('name', 'Josh'),
+                        SqliteOperator.AND,
+                        SqliteWhere.equal('age', 55),
+                    )
+
+            print(where) -> WHERE name = 'Josh' AND age = '55'
+    """
+
+    def __init__(self, *args: 'SqliteWhere') -> None:
+        self.where = f"WHERE {' '.join(args)}"
+    
+    def __repr__(self) -> str:
+        return self.where
+
     @staticmethod
     def equal(key: str, value: str) -> str:
         if value != None:
@@ -132,11 +145,6 @@ class SqliteWhere:
         return f"{key} {SqliteOperator.NOT if not_between else ''} {SqliteOperator.BETWEEN} {low_ex}{SqliteOperator.AND}{high_ex}"
 
 
-
-    @staticmethod
-    def where(*args: 'SqliteWhere') -> str:
-        return f"WHERE {' '.join(args)}"
-
 class Database(metaclass=Singleton):
 
     """
@@ -145,14 +153,13 @@ class Database(metaclass=Singleton):
         The 'pathname' variable can also contain the exact database path
     """
 
-    def __init__(self, pathname: str = ':memory:'):
-    # def __init__(self, pathname: str = ':memory:', _conn: sqlite3.Connection = None):
+    def __init__(self, pathname: str = ':memory:', check_same_thread: bool = False):
 
         self.pathname: str = pathname
         self._conn: sqlite3.Connection = None
 
         try:
-            self._conn = sqlite3.connect(self.pathname)
+            self._conn = sqlite3.connect(self.pathname, check_same_thread=check_same_thread)
 
         except sqlite3.Error as err:
             print(err, f'({self.pathname})')
@@ -244,7 +251,7 @@ class Database(metaclass=Singleton):
             print("Insert error, ", err)
             exit()
 
-    def select(self, table: str, where: SqliteWhere = '', column: list|str = '*', order_by: tuple[str] = (), limit: int = -1) -> List[tuple] | tuple :
+    def select(self, table: str, where: SqliteWhere = '', column: list|str = '*', order_by: tuple[str] = (), limit: int = -1) -> list[tuple] | tuple :
 
         """
             Select values
@@ -252,7 +259,7 @@ class Database(metaclass=Singleton):
             column: ['name', 'year', ... ]
             where: SqliteWhere (Class) statement ->.
 
-                SqliteWhere.where(
+                SqliteWhere (
                         SqliteWhere.equal('name', 'Josh')
                         SqliteOperator.AND,
                         SqliteWhere.equal('year', 2000)
@@ -304,7 +311,7 @@ class Database(metaclass=Singleton):
             exit()
 
     @sqliteError
-    def update(self, table: str, updata: List[str], where: SqliteWhere, order_by: str = '', limit: int = -1 ):
+    def update(self, table: str, updata: list[str], where: SqliteWhere, order_by: str = '', limit: int = -1 ):
         """UPDATE only 'WHERE' stmt"""
 
         if where == '':
@@ -339,7 +346,7 @@ class Database(metaclass=Singleton):
         except sqlite3.Error as err:
             print("Delete error, ", err)
 
-    def get_columns(self, table: str) -> List[str]:
+    def get_columns(self, table: str) -> list[str]:
         cur = self.run(f"SELECT * FROM {table} LIMIT 1")
 
         return list(map(lambda x: x[0], cur.description))
@@ -356,7 +363,7 @@ class Database(metaclass=Singleton):
         return self._conn.commit()
 
     @sqliteError
-    def create_table(self, table: str, columns: List[SqliteEngine.column] ) -> None:
+    def create_table(self, table: str, columns: list[SqliteEngine.column] ) -> None:
         """
             Create table
         """
