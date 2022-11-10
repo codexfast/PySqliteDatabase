@@ -42,13 +42,13 @@ class SqliteOperator:
 
     ALL = " ALL "
     ANY = " ANY "
-    AND = " AND " 	 
-    ANY =  " ANY "	 
-    BETWEEN = " BETWEEN "	 
-    EXISTS = " EXISTS "	
-    IN = " IN "	
-    LIKE = " LIKE "	
-    NOT = " NOT "	
+    AND = " AND "
+    ANY =  " ANY "
+    BETWEEN = " BETWEEN "
+    EXISTS = " EXISTS "
+    IN = " IN "
+    LIKE = " LIKE "
+    NOT = " NOT "
     OR = " OR "
 
     ASC = "ASC"
@@ -91,7 +91,7 @@ class SqliteEngine:
         return column
 
     @staticmethod
-    def create(table: str, columns: list[str]):
+    def create(table: str, columns: List[str]):
         return f'CREATE TABLE IF NOT EXISTS {table} ({",".join(columns)})'
 
 class SqliteWhere:
@@ -131,11 +131,11 @@ class SqliteWhere:
     def where(*args: 'SqliteWhere') -> str:
         return f"WHERE {' '.join(args)}"
 
-class Database(metaclass=Singleton):    
-    
+class Database(metaclass=Singleton):
+
     """
         Class that handles database
-        
+
         The 'pathname' variable can also contain the exact database path
     """
 
@@ -147,7 +147,7 @@ class Database(metaclass=Singleton):
 
         try:
             self._conn = sqlite3.connect(self.pathname)
-        
+
         except sqlite3.Error as err:
             print(err, f'({self.pathname})')
             exit()
@@ -231,7 +231,7 @@ class Database(metaclass=Singleton):
         try:
             cur.execute(sql, values)
             self._conn.commit()
-            
+
             return cur.lastrowid
         except sqlite3.Error as err:
 
@@ -239,7 +239,7 @@ class Database(metaclass=Singleton):
             exit()
 
     def select(self, table: str, where: SqliteWhere = '', column: list|str = '*', order_by: tuple[str] = (), limit: int = -1) -> List[tuple] | tuple :
-        
+
         """
             Select values
 
@@ -256,7 +256,7 @@ class Database(metaclass=Singleton):
         """
 
         assert type(limit) == int
-        
+
         values = []
 
         if type(column) == list:
@@ -277,7 +277,7 @@ class Database(metaclass=Singleton):
             order_by = ''
 
         sql = f'''
-            SELECT {column} 
+            SELECT {column}
             FROM {table}
             {where}
             {"ORDER BY " + order_by if order_by else '' }
@@ -291,11 +291,30 @@ class Database(metaclass=Singleton):
             fetch = cur.fetchall()
             if len(fetch) == 1:
                 return fetch[0]
-            
+
             return fetch if len(fetch) > 1 else None
         except sqlite3.Error as err:
             print("Select error", err)
             exit()
+
+    @sqliteError
+    def update(self, table: str, where: SqliteWhere, order_by: str = '', limit: int = -1 ):
+        """UPDATE only 'WHERE' stmt"""
+
+        if where == '':
+            raise ValueError('Where is empty')
+
+        sql = f"""UPDATE {table} SET {where}"""
+
+        if order_by != '':
+            sql = f"{sql} ORDER BY {order_by}"
+
+        if limit > 0:
+            sql = f"{sql} LIMIT {limit}"
+
+
+        self._conn.execute(sql)
+        return self._conn.commit()
 
     def delete(self, table: str, where: SqliteWhere):
         """'DELETE' only 'WHERE' stmt"""
@@ -307,7 +326,7 @@ class Database(metaclass=Singleton):
 
         try:
             self._conn.execute(sql)
-            self._conn.commit()
+            return self._conn.commit()
         except sqlite3.Error as err:
             print("Delete error, ", err)
 
@@ -322,7 +341,7 @@ class Database(metaclass=Singleton):
         self._conn.commit()
 
     @sqliteError
-    def create_table(self, table: str, columns: list[SqliteEngine.column] ) -> None:
+    def create_table(self, table: str, columns: List[SqliteEngine.column] ) -> None:
         """
             Create table
         """
@@ -344,16 +363,51 @@ class Database(metaclass=Singleton):
         return sqlite3.connect(pathname)
 
 if __name__ == "__main__":
-  
+
+    person = [
+        {"name": "Roger", "age": 312321314, "sex":"m", "color":"merda"},
+        {"name": "Mia", "age": 332, "sex":"f", "color":"yellow"},
+        {"name": "Smith", "age": 97, "sex":"f", "color":"white"},
+        {"name": "Anne", "age": 36, "sex":"m", "color":"red"},
+        {"name": "Pablo", "age": 27, "sex":"m", "color":"white"},
+        {"name": "Suzy", "age": 44, "sex":"f", "color":"brown"},
+        {"name": "Andrean", "age": 64, "sex":"f", "color":"white"},
+        {"name": "Gilberto", "age": 23, "sex":"m", "color":"black"},
+        {"name": "Honda civic", "age": 12, "sex":"carro macho", "color":"silver"},
+    ]
+
+    db = Database('person.db')
+
+    db.create_table('person', columns=[
+        SqliteEngine.column('id', SqliteTypes.INTEGER, not_null=True, primary_key=True),
+        SqliteEngine.column('name', SqliteTypes.TEXT),
+        SqliteEngine.column('age', SqliteTypes.INTEGER),
+        SqliteEngine.column('sex', SqliteTypes.TEXT),
+        SqliteEngine.column('color', SqliteTypes.TEXT),
+    ])
+
+    # for i in person:
+    #     db.insert('person', (None, i['name'], i['age'], i['sex'], i['color']))
+    #
+
+    db.update('person', where=SqliteWhere.where(
+        SqliteWhere.equal('id', 1)
+    ))
+    p = db.select('person', where=SqliteWhere.where(
+        SqliteWhere.equal('id', 1)
+    ))
+
+    print(p)
+
     """
-        
-        db.create_table()
-        db.drop_table()
+
+        db.create_table() ok
+        db.drop_table() ok
 
         db.insert()
-        db.select()
-        db.delete()
+        db.select() ok
+        db.delete() ok
 
-        db.backup()
+        db.backup() ok
 
     """
