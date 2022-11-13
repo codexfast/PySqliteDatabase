@@ -8,6 +8,7 @@ import os
 import time
 import sqlite3
 import pathlib
+import colorama as cl
 
 def in_apostrophe(txt): return f"""'{txt}'""" 
 
@@ -16,7 +17,7 @@ def sqliteError(func):
         try:
             return func(ref, *args, **kargs)
         except sqlite3.Error as err:
-            print('Sqlite error, ',err)
+            print(f'[*] Sqlite error: {cl.Fore.RED}{err}{cl.Style.RESET_ALL}')
             exit()
 
     return inner
@@ -160,6 +161,8 @@ class Database(metaclass=Singleton):
 
         try:
             self._conn = sqlite3.connect(self.pathname, check_same_thread=check_same_thread)
+
+            print(f'[*] connection successfully established on: {cl.Fore.GREEN}{self.pathname}{cl.Style.RESET_ALL}')
 
         except sqlite3.Error as err:
             print(err, f'({self.pathname})')
@@ -387,7 +390,6 @@ class Database(metaclass=Singleton):
         return sqlite3.connect(pathname)
 
 if __name__ == "__main__":
-
 
     """
 

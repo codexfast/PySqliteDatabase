@@ -8,6 +8,9 @@ version = "0.0.6"
 authors = [
   { name="codexfast (Gilberto Leandro)", email="codexfast@gmail.com" },
 ]
+dependencies = [
+  "colorama"
+]
 description = "This package allows you to easily manipulate any sqlite based database"
 readme = "README.md"
 requires-python = ">=3.10"
