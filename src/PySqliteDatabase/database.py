@@ -382,7 +382,15 @@ class Database(metaclass=Singleton):
             columns=columns
         ))
 
-        fetch = cur.execute(f"SELECT * FROM sqlite_master")
+        sql_has_table = f"""
+            SELECT 
+                tbl_name
+            FROM 
+                sqlite_master 
+                    {SqliteWhere(SqliteWhere.equal('tbl_name', table))};
+        """
+
+        fetch = cur.execute(sql_has_table)
 
         return fetch.fetchone() is not None
 
