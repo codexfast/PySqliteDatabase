@@ -1,4 +1,4 @@
-import src.PySqliteDatabase as psd
+import src.pysqlitedatabase as psd
 
 db = psd.Database('person.db')
 
