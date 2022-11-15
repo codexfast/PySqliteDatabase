@@ -173,6 +173,8 @@ class Database(metaclass=Singleton):
         if hasattr(self, '_conn'):
             if isinstance(self._conn, sqlite3.Connection):
                 self._conn.close()
+                print(f'[*] connection close: {cl.Fore.RED}{self.pathname}{cl.Style.RESET_ALL}')
+
 
     @sqliteError
     def backup(self, pathname: str):
@@ -366,7 +368,7 @@ class Database(metaclass=Singleton):
         return self._conn.commit()
 
     @sqliteError
-    def create_table(self, table: str, columns: list[SqliteEngine.column] ) -> None:
+    def create_table(self, table: str, columns: list[SqliteEngine] ) -> None:
         """
             Create table
         """
@@ -380,7 +382,9 @@ class Database(metaclass=Singleton):
             columns=columns
         ))
 
-        return self._conn.commit()
+        fetch = cur.execute(f"SELECT * FROM sqlite_master")
+
+        return fetch.fetchone() is not None
 
     @staticmethod
     def create_conn(pathname: str):
