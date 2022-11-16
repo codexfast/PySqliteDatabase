@@ -10,7 +10,17 @@ import sqlite3
 import pathlib
 import colorama as cl
 
-def in_apostrophe(txt): return f"""'{txt}'""" 
+def in_apostrophe(value): return f"'{value}'"
+
+def sql_value(value):
+    if type(value) is int:
+        return value
+    return in_apostrophe(value)
+
+def dict_factory(cursor, row):
+    col_names = [col[0] for col in cursor.description]
+
+    return {key: value for key, value in zip(col_names, row)}
 
 def sqliteError(func):
     def inner(ref, *args, **kargs):
@@ -21,6 +31,25 @@ def sqliteError(func):
             exit()
 
     return inner
+
+
+class AlreadyExists(Exception):
+    """Custom error that is raised when already exists value"""
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+        self.message = f"{self.value} already exists"
+
+        super().__init__()
+
+# class RestoreOrBackupError(Exception):
+#     def __init__(self, value: str) -> None:
+#         self.value = value
+#         self.message = f"asas"
+
+#         print(self.value)
+
+#         super().__init__()
 
 class Singleton(type):
     _instances = {}
@@ -60,7 +89,7 @@ class SqliteTypes:
     TEXT = "TEXT"
     REAL = "REAL"
     BLOB = "BLOB"
-    DATETIME = "DATETIME "
+    DATETIME = "DATETIME"
 
 class SqliteEngine:
 
@@ -123,19 +152,25 @@ class SqliteWhere():
             return f"{key} IS NULL"
 
     @staticmethod
-    def like(key: str, value: str) -> str:
+    def like(key: str, pattern: str) -> str:
         """
-            value: %value%
+            pattern: str
         """
-        return f"{key}{SqliteOperator.LIKE}'{value}'"
+        return f"{key} {SqliteOperator.LIKE} {in_apostrophe(pattern)}"
 
     @staticmethod
-    def  in_(key: str, value: tuple) -> str:
+    def  in_(key: str, values: tuple) -> str:
         """
             value: tuple('value1', value2, ... )
         """
 
-        return f"{key}{SqliteOperator.IN}({','.join(map(str, value))})"
+        assert type(values) == tuple
+
+        query = f"""{key} {SqliteOperator.IN} {
+            ','.join(map(sql_value, values))
+        }"""
+
+        return query
 
     @staticmethod
     def between(key: str, low_ex: str|int, high_ex: str|int, not_between: bool = False ) -> str:
@@ -175,23 +210,82 @@ class Database(metaclass=Singleton):
                 self._conn.close()
                 print(f'[*] connection close: {cl.Fore.RED}{self.pathname}{cl.Style.RESET_ALL}')
 
+    @sqliteError
+    def has_table(self, table: str) -> bool:
+
+        """
+            return 'True' if has table
+        """
+        
+        sql_has_table = f"""
+            SELECT 
+                tbl_name
+            FROM 
+                sqlite_master 
+            {SqliteWhere(SqliteWhere.equal('tbl_name', table))};
+        """
+
+        cur = self._conn.cursor()
+
+        fetch = cur.execute(sql_has_table)
+
+        return fetch.fetchone() is not None
 
     @sqliteError
-    def backup(self, pathname: str):
+    def has_column(self, table: str, column: str) -> bool:
         """
-            pathname: Path name to backup
+            return 'True' if has column
+        """
+
+        column = f'%{column}%'
+
+        sql_has_column = f"""
+            SELECT 
+                sql
+            FROM 
+                sqlite_master
+            {SqliteWhere(
+                SqliteWhere.equal('tbl_name', table),
+                SqliteOperator.AND,
+                SqliteWhere.like('sql', column)
+            )}
+        """
+        cur = self._conn.cursor()
+        fetch = cur.execute(sql_has_column)
+
+        return fetch.fetchone() is not None
+
+    def backup(self, path: str):
+        """
+            path: Path to backup
 
             Here is created dump sql
         """
-        print(f'{"Backup":-^25}')
+        # print(f'{"Backup":-^25}')
 
-        bkp_name = pathlib.PurePath(pathname).with_suffix(f'.{time.time_ns()}_dump.sql')
-        os.makedirs(os.path.dirname(bkp_name), exist_ok=True)
+        try:
+            bkp_name = pathlib.PurePath(path)
+            bkp_name = f'{bkp_name}\{time.time_ns()}_backup_dump.sql'
 
-        with io.open(bkp_name, 'w') as f:
-            for lines in self._conn.iterdump():
-                f.write(f'{lines}\n')
-        print(f'Backup saved in: {pathlib.Path(bkp_name).parent.absolute()}')
+            print(bkp_name)
+
+            os.makedirs(os.path.dirname(bkp_name), exist_ok=True)
+
+        except FileNotFoundError as err:
+            print(err)
+            return False
+        
+        try:
+            with io.open(bkp_name, 'w') as f:
+                for lines in self._conn.iterdump():
+                    f.write(f'{lines}\n')
+            print(f'Backup saved in: {cl.Fore.GREEN}{pathlib.Path(bkp_name).parent.absolute()}{cl.Style.RESET_ALL}')
+
+        except Exception as err:
+            print(err)
+            
+            return False
+
         # print(f'{"":-^25}')
 
     @sqliteError
@@ -201,13 +295,19 @@ class Database(metaclass=Singleton):
 
             here is read sql statements in dump
         """
-        print(f'{"Restore":-^25}')
+        # print(f'{"Restore":-^25}')
 
-        with io.open(pathname, 'r') as f:
-            sql = f.read()
-            self._conn.executescript(sql)
+        try:
+            with io.open(pathname, 'r') as f:
+                sql = f.read()
+                self._conn.executescript(sql)
 
-        print(f'Restoration completed from: {pathname}')
+            print(f'Restoration completed from: {cl.Fore.GREEN}{pathname}{cl.Style.RESET_ALL}')
+
+        except FileNotFoundError as err:
+            print(err)
+
+            return False
 
     def run(self, sql: str) -> sqlite3.Cursor:
         """
@@ -250,13 +350,13 @@ class Database(metaclass=Singleton):
             cur.execute(sql, values)
             self._conn.commit()
 
-            return cur.lastrowid
+            return True if self._conn.total_changes > 0 else False
         except sqlite3.Error as err:
 
             print("Insert error, ", err)
             exit()
 
-    def select(self, table: str, where: SqliteWhere = '', column: list|str = '*', order_by: tuple[str] = (), limit: int = -1) -> list[tuple] | tuple :
+    def select(self, table: str, where: SqliteWhere = '', column: list|str = '*', order_by: tuple[str] = (), limit: int = -1, row_factory: sqlite3.Row = None) -> list[tuple] | tuple :
 
         """
             Select values
@@ -304,6 +404,7 @@ class Database(metaclass=Singleton):
 
         try:
             cur = self._conn.cursor()
+            cur.row_factory = row_factory
             cur.execute(sql, values)
 
             fetch = cur.fetchall()
@@ -316,11 +417,18 @@ class Database(metaclass=Singleton):
             exit()
 
     @sqliteError
-    def update(self, table: str, updata: list[str], where: SqliteWhere, order_by: str = '', limit: int = -1 ):
+    def update(self, table: str, updata: list[SqliteEngine], where: SqliteWhere, order_by: str = '', limit: int = -1 ):
         """UPDATE only 'WHERE' stmt"""
+
+        assert type(updata) == list
 
         if where == '':
             raise ValueError('Where is empty')
+
+        old_row = self.select(table, where=where)
+
+        if old_row is None:
+            return False
 
         sql = f"""UPDATE {table} SET {','.join(updata)} {where}"""
 
@@ -333,9 +441,15 @@ class Database(metaclass=Singleton):
         cur = self._conn.cursor()
         cur.execute(sql)
 
-        return self._conn.commit()
+        print(cur.fetchall())
 
-    def delete(self, table: str, where: SqliteWhere):
+        new_row = self.select(table, where=where)
+
+        self._conn.commit()
+
+        return old_row != new_row
+
+    def delete(self, table: str, where: SqliteWhere) -> bool:
         """'DELETE' only 'WHERE' stmt"""
 
         if where == '':
@@ -347,11 +461,26 @@ class Database(metaclass=Singleton):
             cur = self._conn.cursor()
             cur.execute(sql)
 
-            return self._conn.commit()
+            self._conn.commit()
+
+            return self.select(table=table, limit=1, where=where) is None
         except sqlite3.Error as err:
             print("Delete error, ", err)
+    
+
+    def get_tables(self):
+        """
+            Get all tables from database
+        """
+        cur = self.run(f"SELECT tbl_name FROM sqlite_master")
+
+        return list(map(lambda x: x[0], cur.fetchall()))
 
     def get_columns(self, table: str) -> list[str]:
+        """
+            Get all columns from database by table
+        """
+
         cur = self.run(f"SELECT * FROM {table} LIMIT 1")
 
         return list(map(lambda x: x[0], cur.description))
@@ -362,10 +491,15 @@ class Database(metaclass=Singleton):
             Drop table
         """
         
+        if not self.has_table(table):
+            return False
+
         cur = self._conn.cursor()
         cur.execute(f'DROP TABLE {table}')
 
-        return self._conn.commit()
+        self._conn.commit()
+
+        return not self.has_table(table)
 
     @sqliteError
     def create_table(self, table: str, columns: list[SqliteEngine] ) -> None:
@@ -376,23 +510,16 @@ class Database(metaclass=Singleton):
         assert type(columns) == list
         assert columns != []
 
+        if self.has_table(table):
+            raise AlreadyExists(table)
+
         cur = self._conn.cursor()
         cur.execute(SqliteEngine.create(
             table=table,
             columns=columns
         ))
 
-        sql_has_table = f"""
-            SELECT 
-                tbl_name
-            FROM 
-                sqlite_master 
-                    {SqliteWhere(SqliteWhere.equal('tbl_name', table))};
-        """
-
-        fetch = cur.execute(sql_has_table)
-
-        return fetch.fetchone() is not None
+        return self.has_table(table)
 
     @staticmethod
     def create_conn(pathname: str):
