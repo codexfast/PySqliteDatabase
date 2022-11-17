@@ -99,7 +99,14 @@ class SqliteEngine:
     CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP"
 
     @staticmethod
-    def column(name: str, type_: SqliteTypes, primary_key: bool = False, not_null: bool = False, unique: bool = False, default = False):
+    def column(
+        name: str,
+        type_: SqliteTypes,
+        primary_key: bool = False,
+        not_null: bool = False,
+        unique: bool = False,
+        default = False
+        ):
 
         if default:
             if type(default) == str:
@@ -140,7 +147,7 @@ class SqliteWhere():
 
     def __init__(self, *args: 'SqliteWhere') -> None:
         self.where = f"WHERE {' '.join(args)}"
-    
+
     def __repr__(self) -> str:
         return self.where
 
@@ -173,7 +180,12 @@ class SqliteWhere():
         return query
 
     @staticmethod
-    def between(key: str, low_ex: str|int, high_ex: str|int, not_between: bool = False ) -> str:
+    def between(
+        key: str,
+        low_ex: str|int,
+        high_ex: str|int,
+        not_between: bool = False
+        ) -> str:
         """
             value: tuple('value1', value2, ... )
         """
@@ -216,12 +228,12 @@ class Database(metaclass=Singleton):
         """
             return 'True' if has table
         """
-        
+
         sql_has_table = f"""
-            SELECT 
+            SELECT
                 tbl_name
-            FROM 
-                sqlite_master 
+            FROM
+                sqlite_master
             {SqliteWhere(SqliteWhere.equal('tbl_name', table))};
         """
 
@@ -240,9 +252,9 @@ class Database(metaclass=Singleton):
         column = f'%{column}%'
 
         sql_has_column = f"""
-            SELECT 
+            SELECT
                 sql
-            FROM 
+            FROM
                 sqlite_master
             {SqliteWhere(
                 SqliteWhere.equal('tbl_name', table),
@@ -274,7 +286,7 @@ class Database(metaclass=Singleton):
         except FileNotFoundError as err:
             print(err)
             return False
-        
+
         try:
             with io.open(bkp_name, 'w') as f:
                 for lines in self._conn.iterdump():
@@ -283,7 +295,7 @@ class Database(metaclass=Singleton):
 
         except Exception as err:
             print(err)
-            
+
             return False
 
         # print(f'{"":-^25}')
@@ -466,7 +478,7 @@ class Database(metaclass=Singleton):
             return self.select(table=table, limit=1, where=where) is None
         except sqlite3.Error as err:
             print("Delete error, ", err)
-    
+
 
     def get_tables(self):
         """
@@ -490,7 +502,7 @@ class Database(metaclass=Singleton):
         """
             Drop table
         """
-        
+
         if not self.has_table(table):
             return False
 
